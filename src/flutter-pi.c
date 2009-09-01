@@ -1242,26 +1242,8 @@ bool init_application(void) {
 	};
 	
 	// only enable vsync if the kernel supplies valid vblank timestamps
-	uint64_t ns = 0;
-	ok = drmCrtcGetSequence(drm.fd, drm.crtc_id, NULL, &ns);
-	if (ok != 0) _errno = errno;
-
-	if ((ok == 0) && (ns != 0)) {
 		drm.disable_vsync = false;
 		flutter.args.vsync_callback	= vsync_callback;
-	} else {
-		drm.disable_vsync = true;
-		if (ok != 0) {
-			fprintf(stderr,
-					"WARNING: Could not get last vblank timestamp. %s\n", strerror(_errno));
-		} else {
-			fprintf(stderr,
-					"WARNING: Kernel didn't return a valid vblank timestamp. (timestamp == 0)\n");
-		}
-		fprintf(stderr,
-				"         VSync will be disabled.\n"
-				"         See https://github.com/ardera/flutter-pi/issues/38 for more info.\n");
-	}
 
 	// spin up the engine
 	FlutterEngineResult _result = FlutterEngineRun(FLUTTER_ENGINE_VERSION, &flutter.renderer_config, &flutter.args, NULL, &engine);
