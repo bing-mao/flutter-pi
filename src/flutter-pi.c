@@ -1377,7 +1377,13 @@ void  init_io(void) {
 				perror("    could not query input_absinfo: ioctl for ECIOCGABS(ABS_X) or EVIOCGABS(ABS_Y) failed");
 				goto close_continue;
 			}
-		}
+		} else {
+                    dev.xinfo.minimum = 0;
+                    dev.xinfo.maximum = 480;
+                    dev.yinfo.minimum = 0;
+                    dev.yinfo.maximum = 800;
+                    printf("mbing's hack\n");
+                }
 
 		// check if the device is multitouch (so a multitouch touchscreen or touchpad)
 		if (ISSET(absbits, ABS_MT_SLOT)) {
@@ -1393,6 +1399,7 @@ void  init_io(void) {
 			// put the info in the input_device field
 			dev.n_mtslots = slotinfo.maximum + 1;
 			dev.i_active_mtslot = slotinfo.value;
+printf("active is %d\n", slotinfo.value);
 		} else {
 			// even if the device doesn't have multitouch support,
 			// i may need some space to store coordinates, for example
@@ -1400,7 +1407,7 @@ void  init_io(void) {
 			dev.n_mtslots = 1;
 			dev.i_active_mtslot = 0;
 		}
-
+printf("dev.n_mtslots is %d\n", dev.n_mtslots);
 		dev.mtslots = calloc(dev.n_mtslots, sizeof(struct mousepointer_mtslot));
 		for (int j=0; j < dev.n_mtslots; j++) {
 			dev.mtslots[j].id = -1;
@@ -1503,7 +1510,7 @@ void  on_evdev_input(fd_set fds, size_t n_ready_fds) {
 					// select a new active mtslot.
 					device->i_active_mtslot = e->value;
 					active_mtslot = &device->mtslots[device->i_active_mtslot];
-
+printf("change slot to %d\n", device->i_active_mtslot);
 				} else if (e->code == ABS_MT_POSITION_X || e->code == ABS_X || e->code == ABS_MT_POSITION_Y || e->code == ABS_Y) {
 					double relx = 0, rely = 0;
 					
@@ -1511,12 +1518,15 @@ void  on_evdev_input(fd_set fds, size_t n_ready_fds) {
 						double newx = (e->value - device->xinfo.minimum) * width / (double) (device->xinfo.maximum - device->xinfo.minimum);
 						relx = active_mtslot->phase == kDown ? 0 : newx - active_mtslot->x;
 						active_mtslot->x = newx;
+printf("max: %d,  min: %d\n", device->xinfo.maximum, device->xinfo.minimum);
+printf("Now x is %lf, original value is %d\n", active_mtslot->x, e->value);
 					} else if (e->code == ABS_MT_POSITION_Y || (e->code == ABS_Y && device->n_mtslots == 1)) {
 						double newy = (e->value - device->yinfo.minimum) * height / (double) (device->yinfo.maximum - device->yinfo.minimum);
 						rely = active_mtslot->phase == kDown ? 0 : newy - active_mtslot->y;
 						active_mtslot->y = newy;
+printf("Now y is %lf\n", active_mtslot->y);
 					}
-
+//printf("phase is %d\n", active_mtslot->phase);
 					// if the device is associated with the mouse pointer (touchpad), update that pointer.
 					if (relx != 0 || rely != 0) {
 						struct mousepointer_mtslot *slot = active_mtslot;
@@ -1525,13 +1535,14 @@ void  on_evdev_input(fd_set fds, size_t n_ready_fds) {
 							mousepointer.x += relx;
 							mousepointer.y += rely;
 							slot = &mousepointer;
+printf("%d, %d\n", relx, rely);
 						}
 
 						if (slot->phase == kCancel)
 							slot->phase = device->active_buttons ? kMove : kHover;
 					}
 				} else if ((e->code == ABS_MT_TRACKING_ID) && (active_mtslot->id == -1 || e->value == -1)) {
-
+printf("ABS_MT_TRACKING_ID %d\n", e->value);
 					// id -1 means no id, or no touch. one tracking id is equivalent one continuous touch contact.
 					bool before = device->active_buttons && true;
 
@@ -1539,15 +1550,21 @@ void  on_evdev_input(fd_set fds, size_t n_ready_fds) {
 						active_mtslot->id = e->value;
 						// only set active_buttons if a touch equals a kMove (not kHover, as it is for multitouch touchpads)
 						device->active_buttons |= (device->is_direct ? FLUTTER_BUTTON_FROM_EVENT_CODE(BTN_TOUCH) : 0);
+printf("Press\n");
 					} else {
 						active_mtslot->id = -1;
 						device->active_buttons &= ~(device->is_direct ? FLUTTER_BUTTON_FROM_EVENT_CODE(BTN_TOUCH) : 0);
+printf("Release\n");
 					}
 
 					if (!before != !device->active_buttons)
 						active_mtslot->phase = before ? kUp : kDown;
+                                    if ( e->value == -1)
+                                        active_mtslot->phase = kUp;
+                                    else
+                                        active_mtslot->phase = kDown;
 				}
-
+#if 0
 			} else if (e->type == EV_KEY) {
 				
 				// remember if some buttons were pressed before this update
@@ -1577,7 +1594,7 @@ void  on_evdev_input(fd_set fds, size_t n_ready_fds) {
 				// if yes, change the current pointer phase
 				if (!before != !device->active_buttons)
 					(device->is_pointer ? &mousepointer : active_mtslot) ->phase = before ? kUp : kDown;
-
+#endif
 			} else if ((e->type == EV_SYN) && (e->code == SYN_REPORT)) {
 				
 				// We can now summarise the updates we received from the evdev into a FlutterPointerEvent
@@ -1629,14 +1646,14 @@ void  on_evdev_input(fd_set fds, size_t n_ready_fds) {
 						.buttons = device->active_buttons & 0xFF
 					};
 
-					slots[j].phase = kCancel;
+					//mbing slots[j].phase = kCancel;
 				}
 			}
 		}
 	}
 
 	if (i_flutterevent == 0) return;
-
+printf("send event at phase:%d, x:%f, y:%f, button: %d\n", flutterevents[0].phase, flutterevents[0].x, flutterevents[0].y, flutterevents[0].buttons);
 	// now, send the data to the flutter engine
 	ok = kSuccess == FlutterEngineSendPointerEvent(engine, flutterevents, i_flutterevent);
 	if (!ok) {
@@ -1708,7 +1725,7 @@ void *io_loop(void *userdata) {
 			perror("reached EOF while waiting for I/O");
 			return NULL;
 		}
-		
+
 		if (FD_ISSET(drm.fd, &fds)) {
 			drmHandleEvent(drm.fd, &drm.evctx);
 			FD_CLR(drm.fd, &fds);
