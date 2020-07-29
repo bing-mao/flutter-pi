@@ -1,5 +1,5 @@
 # Engine Binaries
-This branch contains precompiled flutter engine binaries (and include files) for use on the Raspberry Pi.
+This branch contains precompiled flutter engine binaries (and include files) for my 64bit nanopi fire3 board.
 
 ## Installation
 If you want to install the flutter engine on your Pi, do the following steps:
@@ -12,8 +12,8 @@ If you want to install the flutter engine on your Pi, do the following steps:
 ## build parameters
 The engine is built using tip-of-tree llvm/clang 10 and libcxx. The following args are passed to _gn_:
 ```bash
---target-triple arm-linux-gnueabihf
---linux-cpu arm
+--target-triple aarch64-poky-linux
+--linux-cpu arm64
 --runtime-mode debug
 --embedder-for-target
 --lto
